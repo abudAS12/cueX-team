@@ -34,29 +34,36 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
 
-      const ext = file.name.split(".").pop();
-      const fileName = `${Date.now()}-${Math.random()
+      // ✅ Tentukan apakah file adalah video atau gambar
+      const ext = file.name.split(".").pop()?.toLowerCase();
+      const isVideo = ["mp4", "mov", "avi", "mkv", "webm"].includes(ext || "");
+
+      // ✅ Gunakan folder berbeda di bucket yang sama
+      const folder = isVideo ? "videos" : "images";
+      const fileName = `${folder}/${Date.now()}-${Math.random()
         .toString(36)
         .substring(2)}.${ext}`;
 
-      // ✅ ubah File menjadi ArrayBuffer agar bisa diupload ke Supabase
+      // ✅ Upload ke Supabase
       const buffer = await file.arrayBuffer();
       const { error: uploadError } = await supabase.storage
-        .from("image")
+        .from("image") // bucket sama
         .upload(fileName, buffer, {
-          contentType: file.type || "image/jpeg",
+          contentType: file.type || (isVideo ? "video/mp4" : "image/jpeg"),
           upsert: true,
         });
 
       if (uploadError) throw uploadError;
 
+      // ✅ Dapatkan URL publik
       const { data: publicUrl } = supabase.storage
         .from("image")
         .getPublicUrl(fileName);
 
+      // ✅ Simpan ke database
       const newGallery = await db.gallery.create({
         data: {
-          type,
+          type: isVideo ? "video" : "image",
           file_path: publicUrl.publicUrl,
           caption,
           tags,
