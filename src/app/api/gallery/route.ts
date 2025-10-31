@@ -39,11 +39,8 @@ export async function POST(request: NextRequest) {
         .toString(36)
         .substring(2)}.${ext}`;
 
-      console.log("📸 Uploading gallery file:", fileName);
-
-      // ✅ fix untuk Vercel: konversi File → Buffer
-      const buffer = Buffer.from(await file.arrayBuffer());
-
+      // ✅ ubah File menjadi ArrayBuffer agar bisa diupload ke Supabase
+      const buffer = await file.arrayBuffer();
       const { error: uploadError } = await supabase.storage
         .from("image")
         .upload(fileName, buffer, {
@@ -51,16 +48,11 @@ export async function POST(request: NextRequest) {
           upsert: true,
         });
 
-      if (uploadError) {
-        console.error("❌ Upload error:", uploadError);
-        throw uploadError;
-      }
+      if (uploadError) throw uploadError;
 
       const { data: publicUrl } = supabase.storage
         .from("image")
         .getPublicUrl(fileName);
-
-      console.log("✅ Uploaded to:", publicUrl.publicUrl);
 
       const newGallery = await db.gallery.create({
         data: {
@@ -71,8 +63,6 @@ export async function POST(request: NextRequest) {
           is_active: true,
         },
       });
-
-      console.log("✅ Gallery item created:", newGallery.id);
 
       return NextResponse.json({
         message: "Gallery item created successfully",
@@ -97,15 +87,12 @@ export async function POST(request: NextRequest) {
           is_active: true,
         },
       });
-
-      console.log("✅ Gallery item created (JSON mode):", newGallery.id);
-
       return NextResponse.json({
         message: "Gallery item created successfully (JSON mode)",
       });
     }
   } catch (error) {
-    console.error("❌ Error creating gallery item:", error);
+    console.error("Error creating gallery item:", error);
     return NextResponse.json(
       { error: "Failed to create gallery item" },
       { status: 500 }
@@ -124,9 +111,6 @@ export async function DELETE(request: NextRequest) {
       );
 
     await db.gallery.delete({ where: { id: Number(id) } });
-
-    console.log("🗑️ Gallery item deleted:", id);
-
     return NextResponse.json({
       message: "Gallery item deleted successfully",
       deletedId: id,

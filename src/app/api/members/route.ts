@@ -44,11 +44,8 @@ export async function POST(request: NextRequest) {
           .toString(36)
           .substring(2)}.${ext}`;
 
-        console.log("📸 Uploading file:", fileName);
-
-        // ✅ fix untuk Vercel: konversi File → Buffer agar kompatibel
-        const buffer = Buffer.from(await file.arrayBuffer());
-
+        // ✅ ubah File ke ArrayBuffer sebelum upload
+        const buffer = await file.arrayBuffer();
         const { error: uploadError } = await supabase.storage
           .from("image")
           .upload(fileName, buffer, {
@@ -56,17 +53,12 @@ export async function POST(request: NextRequest) {
             upsert: true,
           });
 
-        if (uploadError) {
-          console.error("❌ Upload error:", uploadError);
-          throw uploadError;
-        }
+        if (uploadError) throw uploadError;
 
         const { data: publicUrl } = supabase.storage
           .from("image")
           .getPublicUrl(fileName);
-
         photoUrl = publicUrl.publicUrl;
-        console.log("✅ Uploaded to:", photoUrl);
       }
 
       const newMember = await db.members.create({
@@ -79,8 +71,6 @@ export async function POST(request: NextRequest) {
           is_active: true,
         },
       });
-
-      console.log("✅ Member created:", newMember.id);
 
       return NextResponse.json({
         message: "Member created successfully",
@@ -107,14 +97,12 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      console.log("✅ Member created (JSON mode):", newMember.id);
-
       return NextResponse.json({
         message: "Member created successfully (JSON mode)",
       });
     }
   } catch (error) {
-    console.error("❌ Error creating member:", error);
+    console.error("Error creating member:", error);
     return NextResponse.json(
       { error: "Failed to create member" },
       { status: 500 }
