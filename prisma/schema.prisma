@@ -1,0 +1,87 @@
+// ======================================================
+//  Prisma Schema – versi dari MySQL ke PostgreSQL
+//  Siap untuk Supabase + Prisma
+// ======================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL") // pastikan variabel ini sudah di .env
+  directUrl = env("DIRECT_URL")
+}
+
+// ======================================================
+//  TABLE: users
+// ======================================================
+model users {
+  id         Int      @id @default(autoincrement())
+  email      String   @unique
+  password   String
+  role       String   @default("user")
+  name       String
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+}
+
+// ======================================================
+//  TABLE: members
+// ======================================================
+model members {
+  id         Int      @id @default(autoincrement())
+  name       String
+  role       String
+  bio        String?
+  photo      String?
+  socials    Json?
+  is_active  Boolean  @default(true)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+}
+
+// ======================================================
+//  TABLE: gallery
+// ======================================================
+model gallery {
+  id         Int      @id @default(autoincrement())
+  type       String
+  file_path  String
+  caption    String?
+  metadata   Json?
+  tags       String?
+  is_active  Boolean  @default(true)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+}
+
+// ======================================================
+//  TABLE: news
+// ======================================================
+model news {
+  id              Int      @id @default(autoincrement())
+  title           String
+  slug            String   @unique
+  summary         String?
+  content         String?
+  featured_image  String?
+  event_date      DateTime?
+  is_published    Boolean  @default(false)
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+}
+
+// ======================================================
+//  TABLE: contacts
+// ======================================================
+model contacts {
+  id         Int      @id @default(autoincrement())
+  name       String
+  email      String
+  subject    String?
+  message    String
+  is_read    Boolean  @default(false)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+}
