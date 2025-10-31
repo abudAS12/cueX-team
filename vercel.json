@@ -1,8 +1,4 @@
 {
   "version": 2,
-  "builds": [{ "src": "next.config.js", "use": "@vercel/next" }],
-  "env": {
-    "DATABASE_URL": "@database_url",
-    "DIRECT_URL": "@direct_url"
-  }
+  "builds": [{ "src": "next.config.js", "use": "@vercel/next" }]
 }
