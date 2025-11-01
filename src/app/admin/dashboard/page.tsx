@@ -189,38 +189,56 @@ const handleCreateGallery = async () => {
     return;
   }
 
-  try {
-    const file = galleryForm.file;
-    const ext = file.name.split(".").pop();
-    const fileName = `${Date.now()}.${ext}`;
-    const filePath = `uploads/${fileName}`;
+  const file = galleryForm.file;
+  // batasi ukuran (opsional) - 100 MB
+  const MAX_SIZE = 100 * 1024 * 1024;
+  if (file.size > MAX_SIZE) {
+    alert("Ukuran file terlalu besar. Maks 100MB.");
+    return;
+  }
 
-    // 🧠 Upload ke Supabase Storage
-    const { error: uploadError } = await supabase.storage
-      .from("image") // bucket kamu
+  try {
+    const ext = file.name.split(".").pop();
+    const isVideo = file.type.startsWith("video") || ["mp4","mov","avi","mkv","webm"].includes((ext||"").toLowerCase());
+    const folder = isVideo ? "videos" : "images";
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${ext}`;
+    const filePath = `${folder}/${fileName}`;
+
+    // Upload ke Supabase Storage
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from("image")
       .upload(filePath, file, {
         cacheControl: "3600",
         upsert: false,
       });
 
     if (uploadError) {
-      console.error("Upload ke Supabase gagal:", uploadError);
-      alert("Upload gagal: " + uploadError.message);
+      console.error("Supabase uploadError:", uploadError);
+      // Beri pesan lebih jelas ke user jika permission issue
+      if ((uploadError as any).status === 403) {
+        alert("Upload ditolak: permission bucket. Cek policy bucket di Supabase (insert permission).");
+      } else {
+        alert("Upload ke Supabase gagal: " + uploadError.message);
+      }
       return;
     }
 
-    // ✅ Ambil URL publik dari Supabase
-    const { data: urlData } = supabase.storage
-      .from("image")
-      .getPublicUrl(filePath);
+    // Ambil public URL
+    const { data: urlData } = supabase.storage.from("image").getPublicUrl(filePath);
     const publicUrl = urlData.publicUrl;
 
-    // 🧾 Kirim metadata ke API (tanpa file lagi)
+    if (!publicUrl) {
+      console.error("No publicUrl returned", urlData);
+      alert("Gagal mengambil public URL.");
+      return;
+    }
+
+    // Kirim metadata ke API (sama seperti sebelumnya)
     const response = await fetch("/api/gallery", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        type: galleryForm.type,
+        type: isVideo ? "video" : "image",
         caption: galleryForm.caption,
         tags: galleryForm.tags,
         file_path: publicUrl,
@@ -229,24 +247,20 @@ const handleCreateGallery = async () => {
 
     if (response.ok) {
       alert("✅ Gallery item created!");
-      setGalleryForm({
-        type: "image",
-        caption: "",
-        tags: "",
-        file: null,
-      });
+      setGalleryForm({ type: "image", caption: "", tags: "", file: null });
       setPreviewUrl(null);
       fetchData();
     } else {
-      const err = await response.text();
-      console.error("Gagal simpan metadata:", err);
+      const errText = await response.text().catch(() => "");
+      console.error("Failed saving metadata:", errText);
       alert("❌ Failed to save metadata.");
     }
   } catch (error) {
     console.error("Error uploading file:", error);
-    alert("❌ Upload failed: " + (error as any).message);
+    alert("❌ Upload failed: " + (error as any)?.message ?? "unknown");
   }
 };
+    
 
   // ==================== NEWS ====================
   const handleCreateNews = async () => {
