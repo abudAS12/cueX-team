@@ -1,8 +1,9 @@
+export const runtime = "nodejs"; // ✅ WAJIB agar Buffer bisa dipakai di Vercel
+
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { supabase } from "@/lib/supabase";
 
-// GET all gallery items
 export async function GET() {
   try {
     const gallery = await db.gallery.findMany({
@@ -19,56 +20,69 @@ export async function GET() {
   }
 }
 
-// POST new gallery item (image or video)
 export async function POST(request: NextRequest) {
   try {
     const contentType = request.headers.get("content-type") || "";
 
-    // If multipart/form-data (file upload)
+    // ==== FORM-DATA MODE (upload file langsung)
     if (contentType.includes("multipart/form-data")) {
       const formData = await request.formData();
+      const type = (formData.get("type") as string) || "image";
       const caption = (formData.get("caption") as string) || null;
       const tags = (formData.get("tags") as string) || null;
       const file = formData.get("file") as File | null;
 
       if (!file) {
-        return NextResponse.json({ error: "File is required" }, { status: 400 });
+        return NextResponse.json(
+          { error: "File is required" },
+          { status: 400 }
+        );
       }
 
-      // Detect extension and whether it's a video
+      // ✅ Deteksi ekstensi dan tipe file
       const ext = file.name.split(".").pop()?.toLowerCase();
       const isVideo = ["mp4", "mov", "avi", "mkv", "webm"].includes(ext || "");
 
-      // folder and filename
       const folder = isVideo ? "videos" : "images";
       const fileName = `${folder}/${Date.now()}-${Math.random()
         .toString(36)
         .substring(2)}.${ext}`;
 
-      // upload (arrayBuffer -> Buffer)
-      const buffer = Buffer.from(await file.arrayBuffer());
+      // ✅ Convert file jadi Buffer dengan cara aman
+      const arrayBuffer = await file.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+
+      console.log(`Uploading ${isVideo ? "video" : "image"}: ${fileName} (${buffer.length} bytes)`);
+
+      // ✅ Upload ke Supabase Storage
       const { error: uploadError } = await supabase.storage
-        .from("image")
+        .from("image") // bucket kamu memang bernama 'image'
         .upload(fileName, buffer, {
           contentType: file.type || (isVideo ? "video/mp4" : "image/jpeg"),
+          cacheControl: "3600",
           upsert: true,
         });
 
       if (uploadError) {
-        console.error("Supabase upload error:", uploadError);
-        throw uploadError;
+        console.error("❌ Supabase upload error:", uploadError);
+        return NextResponse.json(
+          { error: "Failed to upload file" },
+          { status: 500 }
+        );
       }
 
-      // get public url
-      const { data: publicUrl } = supabase.storage
+      // ✅ Ambil URL publik
+      const { data: publicUrlData } = supabase.storage
         .from("image")
         .getPublicUrl(fileName);
 
-      // save to db
+      const publicUrl = publicUrlData?.publicUrl;
+
+      // ✅ Simpan ke database
       const newGallery = await db.gallery.create({
         data: {
           type: isVideo ? "video" : "image",
-          file_path: publicUrl.publicUrl,
+          file_path: publicUrl,
           caption,
           tags,
           is_active: true,
@@ -81,12 +95,15 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // JSON mode
+    // ==== JSON MODE
     const body = await request.json();
     const { type, file_path, caption, metadata, tags } = body;
 
     if (!file_path) {
-      return NextResponse.json({ error: "File path is required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "File path is required" },
+        { status: 400 }
+      );
     }
 
     const newGallery = await db.gallery.create({
@@ -113,7 +130,6 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// DELETE gallery item
 export async function DELETE(request: NextRequest) {
   try {
     const body = await request.json();
