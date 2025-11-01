@@ -60,7 +60,9 @@ export async function POST(request: NextRequest) {
       }
 
       // get public url
-      const { data: publicUrl } = supabase.storage.from("image").getPublicUrl(fileName);
+      const { data: publicUrl } = supabase.storage
+        .from("image")
+        .getPublicUrl(fileName);
 
       // save to db
       const newGallery = await db.gallery.create({
@@ -104,7 +106,10 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error creating gallery item:", error);
-    return NextResponse.json({ error: "Failed to create gallery item" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to create gallery item" },
+      { status: 500 }
+    );
   }
 }
 
@@ -115,7 +120,10 @@ export async function DELETE(request: NextRequest) {
     const { id } = body;
 
     if (!id) {
-      return NextResponse.json({ error: "Gallery ID is required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Gallery ID is required" },
+        { status: 400 }
+      );
     }
 
     await db.gallery.delete({ where: { id: Number(id) } });
@@ -126,6 +134,9 @@ export async function DELETE(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error deleting gallery item:", error);
-    return NextResponse.json({ error: "Failed to delete gallery item" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to delete gallery item" },
+      { status: 500 }
+    );
   }
-    }
+}
