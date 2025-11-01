@@ -184,82 +184,61 @@ export default function AdminDashboardPage() {
 
   // ==================== GALLERY ====================
 const handleCreateGallery = async () => {
-  if (!galleryForm.file) {
-    alert("Please select a file first.");
-    return;
-  }
+    if (!galleryForm.file) {
+      alert("Please select a file first.");
+      return;
+    }
 
-  const file = galleryForm.file;
-  // batasi ukuran (opsional) - 100 MB
-  const MAX_SIZE = 100 * 1024 * 1024;
-  if (file.size > MAX_SIZE) {
-    alert("Ukuran file terlalu besar. Maks 100MB.");
-    return;
-  }
+    const formData = new FormData();
+    formData.append("type", galleryForm.type);
+    formData.append("caption", galleryForm.caption);
+    formData.append("tags", galleryForm.tags);
+    formData.append("file", galleryForm.file);
 
-  try {
-    const ext = file.name.split(".").pop();
-    const isVideo = file.type.startsWith("video") || ["mp4","mov","avi","mkv","webm"].includes((ext||"").toLowerCase());
-    const folder = isVideo ? "videos" : "images";
-    const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${ext}`;
-    const filePath = `${folder}/${fileName}`;
-
-    // Upload ke Supabase Storage
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from("image")
-      .upload(filePath, file, {
-        cacheControl: "3600",
-        upsert: false,
+    try {
+      const response = await fetch("/api/gallery", {
+        method: "POST",
+        body: formData,
       });
 
-    if (uploadError) {
-      console.error("Supabase uploadError:", uploadError);
-      // Beri pesan lebih jelas ke user jika permission issue
-      if ((uploadError as any).status === 403) {
-        alert("Upload ditolak: permission bucket. Cek policy bucket di Supabase (insert permission).");
+      if (response.ok) {
+        alert("✅ Gallery item created!");
+        setGalleryForm({
+          type: "image",
+          caption: "",
+          tags: "",
+          file: null,
+        });
+        setPreviewUrl(null);
+        fetchData();
       } else {
-        alert("Upload ke Supabase gagal: " + uploadError.message);
+        alert("❌ Failed to upload file.");
       }
-      return;
+    } catch (error) {
+      console.error("Error uploading file:", error);
+      alert("Upload failed.");
     }
+  };
 
-    // Ambil public URL
-    const { data: urlData } = supabase.storage.from("image").getPublicUrl(filePath);
-    const publicUrl = urlData.publicUrl;
-
-    if (!publicUrl) {
-      console.error("No publicUrl returned", urlData);
-      alert("Gagal mengambil public URL.");
-      return;
+  const handleDeleteGallery = async (id: number) => {
+    if (!confirm("Are you sure you want to delete this gallery item?")) return;
+    try {
+      const res = await fetch("/api/gallery", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      if (res.ok) {
+        alert("🗑️ Gallery item deleted!");
+        fetchData();
+      } else {
+        alert("❌ Failed to delete gallery item");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("❌ Error deleting gallery item");
     }
-
-    // Kirim metadata ke API (sama seperti sebelumnya)
-    const response = await fetch("/api/gallery", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        type: isVideo ? "video" : "image",
-        caption: galleryForm.caption,
-        tags: galleryForm.tags,
-        file_path: publicUrl,
-      }),
-    });
-
-    if (response.ok) {
-      alert("✅ Gallery item created!");
-      setGalleryForm({ type: "image", caption: "", tags: "", file: null });
-      setPreviewUrl(null);
-      fetchData();
-    } else {
-      const errText = await response.text().catch(() => "");
-      console.error("Failed saving metadata:", errText);
-      alert("❌ Failed to save metadata.");
-    }
-  } catch (error) {
-    console.error("Error uploading file:", error);
-    alert("❌ Upload failed: " + (error as any)?.message ?? "unknown");
-  }
-};
+  };
     
 
   // ==================== NEWS ====================
