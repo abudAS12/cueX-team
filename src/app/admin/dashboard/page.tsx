@@ -183,62 +183,70 @@ export default function AdminDashboardPage() {
   };
 
   // ==================== GALLERY ====================
-  const handleCreateGallery = async () => {
-    if (!galleryForm.file) {
-      alert("Please select a file first.");
+const handleCreateGallery = async () => {
+  if (!galleryForm.file) {
+    alert("Please select a file first.");
+    return;
+  }
+
+  try {
+    const file = galleryForm.file;
+    const ext = file.name.split(".").pop();
+    const fileName = `${Date.now()}.${ext}`;
+    const filePath = `uploads/${fileName}`;
+
+    // 🧠 Upload ke Supabase Storage
+    const { error: uploadError } = await supabase.storage
+      .from("image") // bucket kamu
+      .upload(filePath, file, {
+        cacheControl: "3600",
+        upsert: false,
+      });
+
+    if (uploadError) {
+      console.error("Upload ke Supabase gagal:", uploadError);
+      alert("Upload gagal: " + uploadError.message);
       return;
     }
 
-    const formData = new FormData();
-    formData.append("type", galleryForm.type);
-    formData.append("caption", galleryForm.caption);
-    formData.append("tags", galleryForm.tags);
-    formData.append("file", galleryForm.file);
+    // ✅ Ambil URL publik dari Supabase
+    const { data: urlData } = supabase.storage
+      .from("image")
+      .getPublicUrl(filePath);
+    const publicUrl = urlData.publicUrl;
 
-    try {
-      const response = await fetch("/api/gallery", {
-        method: "POST",
-        body: formData,
+    // 🧾 Kirim metadata ke API (tanpa file lagi)
+    const response = await fetch("/api/gallery", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: galleryForm.type,
+        caption: galleryForm.caption,
+        tags: galleryForm.tags,
+        file_path: publicUrl,
+      }),
+    });
+
+    if (response.ok) {
+      alert("✅ Gallery item created!");
+      setGalleryForm({
+        type: "image",
+        caption: "",
+        tags: "",
+        file: null,
       });
-
-      if (response.ok) {
-        alert("✅ Gallery item created!");
-        setGalleryForm({
-          type: "image",
-          caption: "",
-          tags: "",
-          file: null,
-        });
-        setPreviewUrl(null);
-        fetchData();
-      } else {
-        alert("❌ Failed to upload file.");
-      }
-    } catch (error) {
-      console.error("Error uploading file:", error);
-      alert("Upload failed.");
+      setPreviewUrl(null);
+      fetchData();
+    } else {
+      const err = await response.text();
+      console.error("Gagal simpan metadata:", err);
+      alert("❌ Failed to save metadata.");
     }
-  };
-
-  const handleDeleteGallery = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this gallery item?")) return;
-    try {
-      const res = await fetch("/api/gallery", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id }),
-      });
-      if (res.ok) {
-        alert("🗑️ Gallery item deleted!");
-        fetchData();
-      } else {
-        alert("❌ Failed to delete gallery item");
-      }
-    } catch (e) {
-      console.error(e);
-      alert("❌ Error deleting gallery item");
-    }
-  };
+  } catch (error) {
+    console.error("Error uploading file:", error);
+    alert("❌ Upload failed: " + (error as any).message);
+  }
+};
 
   // ==================== NEWS ====================
   const handleCreateNews = async () => {
